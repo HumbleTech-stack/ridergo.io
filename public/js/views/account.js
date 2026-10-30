@@ -3,21 +3,20 @@ import { layout, bell, avatar, topbar, statusBadge, updateBell } from '../shell.
 import { pickPlace } from '../picker.js';
 import { fmtDate, daysLeft, empty } from '../components.js';
 
-const ROLE = { customer: 'Customer', rider: 'Motorbike rider', driver: 'Car driver', tricycle: 'Tricycle driver', vendor: 'Food vendor', admin: 'Administrator' };
+const ROLE = { customer: 'Customer', rider: 'Rider', driver: 'Car driver', vendor: 'Food vendor', admin: 'Administrator' };
 
 export async function account() {
   await loadMe();
   const { user: u, tenant: t } = S.me; const cust = u.role === 'customer'; const prov = ['rider', 'driver'].includes(u.role);
-  const roleLabel = ROLE[t?.service_type] || ROLE[u.role];
   let places = []; if (cust) { try { places = await GET('/places'); } catch { /* ignore */ } }
   const nav = ['customer', 'rider', 'driver', 'vendor'].includes(u.role) ? (cust ? 'account' : 'account') : null;
   const el = layout(html`<div class="page">
     <header class="hello"><div class="grow"><h1>${u.role === 'vendor' ? 'More' : 'Account'}</h1></div>${bell()}</header>
     <div class="card profile-card"><div class="row gap">${avatar(u, 'big')}<div class="grow"><h3>${u.name}</h3><small class="muted block">${u.email}</small><small class="muted">${u.phone || ''}</small></div></div>
-      <div class="row gap-s wrap mt-s"><span class="badge navy">${roleLabel}</span>${prov ? html`<span class="badge">${icon('star', 12)} ${u.rating_count ? u.rating.toFixed(1) : 'New'}</span>` : ''}${t ? statusBadge(t.status) : ''}</div>
+      <div class="row gap-s wrap mt-s"><span class="badge navy">${u.role === 'rider' ? (u.vehicle_type === 'tricycle' ? 'Tricycle operator' : 'Motorbike rider') : ROLE[u.role]}</span>${prov ? html`<span class="badge">${icon('star', 12)} ${u.rating_count ? u.rating.toFixed(1) : 'New'}</span>` : ''}${t ? statusBadge(t.status) : ''}</div>
       ${t ? html`<p class="small muted mt-s">${t.is_owner ? html`<b>${t.name}</b> · ${t.plan || ''} plan${t.period_end ? html` · renews ${fmtDate(t.period_end)}` : ''}` : html`You work under <b>${t.name}</b>. Your subscription is covered by them.`}</p>` : ''}</div>
 
-    ${t && t.is_owner ? html`<div class="menu-list mt">${u.role === 'vendor' ? html`<a href="#/shop/profile">${icon('store', 20)}<span>Shop profile &amp; location</span>${icon('chev', 16)}</a>` : ''}<a href="#/billing">${icon('shield', 20)}<span>Subscription &amp; billing</span>${icon('chev', 16)}</a><a href="#/wallet">${icon('wallet', 20)}<span>Earnings overview</span>${icon('chev', 16)}</a></div>` : ''}
+    ${t && t.is_owner ? html`<div class="menu-list mt">${u.role === 'vendor' ? html`<a href="#/shop/profile">${icon('store', 20)}<span>Shop profile &amp; location</span>${icon('chev', 16)}</a>` : ''}<a href="#/billing">${icon('shield', 20)}<span>Subscription &amp; billing</span>${icon('chev', 16)}</a><a href="#/wallet">${icon('wallet', 20)}<span>Earnings &amp; withdrawals</span>${icon('chev', 16)}</a></div>` : ''}
 
     ${cust ? html`<section class="section"><div class="section-h"><h3>Saved places</h3><a href="#" data-act="addplace">+ Add</a></div>
       ${places.length ? places.map((p) => html`<div class="card flat row gap mt-s"><span class="pl-ic">${icon('heart', 18)}</span><span class="grow"><b>${p.label}</b><small class="muted block">${shortAddr(p.address)}</small></span><button class="icon-btn sm" data-act="delplace" data-id="${p.id}" aria-label="Remove ${p.label}">${icon('trash', 18)}</button></div>`) : html`<p class="muted small">Save home or work for one-tap booking.</p>`}</section>
@@ -28,6 +27,7 @@ export async function account() {
         ${['rider', 'driver', 'vendor'].includes(u.role) ? html`<label class="field"><span>Profile photo ${prov ? '(required)' : '(optional)'}</span><input class="input" type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp"><small class="muted">${prov && !u.avatar ? 'Upload a photo before opening your rider or driver workspace.' : 'Choose a PNG, JPG or WebP image up to 3 MB.'}</small></label>` : ''}
         <label class="field"><span>Name</span><input class="input" name="name" value="${u.name}" required></label>
         <label class="field"><span>Phone</span><input class="input" name="phone" type="tel" value="${u.phone || ''}" required></label>
+        ${prov && u.role === 'rider' ? html`<label class="field"><span>Vehicle type</span><select class="input" name="vehicle_type"><option value="motor" ${u.vehicle_type !== 'tricycle' ? raw('selected') : ''}>Motorbike</option><option value="tricycle" ${u.vehicle_type === 'tricycle' ? raw('selected') : ''}>Tricycle</option></select></label>` : ''}
         ${prov ? html`<label class="field"><span>Vehicle make &amp; model</span><input class="input" name="vehicle_make" value="${u.vehicle_make || ''}"></label>
           <label class="field"><span>Registration number</span><input class="input" name="plate" value="${u.plate || ''}"></label>
           <label class="field"><span>Driving licence</span><input class="input" name="license_no" value="${u.license_no || ''}"></label>

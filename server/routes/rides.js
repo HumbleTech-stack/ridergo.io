@@ -18,7 +18,7 @@ async function quoteFor(userId, pickup, drop, promoCode) {
   if (r.km < 0.1) fail(400, 'Pickup and destination are too close');
   if (r.km > 150) fail(400, 'That trip is too long for RiderGo');
   const out = {};
-  for (const v of ['motor', 'car', 'tricycle']) {
+  for (const v of ['motor', 'tricycle', 'car']) {
     const base = pricing.rideFare(v, r.km, r.min);
     let discount = 0, promo = null;
     if (promoCode) { try { ({ discount, promo } = pricing.applyPromo(promoCode, userId, 'ride', base)); } catch (e) { if (v === 'motor') out.promo_error = e.message; } }
@@ -34,7 +34,7 @@ router.post('/api/rides/quote', async (c) => {
 
 router.post('/api/rides', async (c) => {
   const u = c.need('customer'); const b = c.body;
-  if (!['motor', 'car', 'tricycle'].includes(b.vehicle_type)) fail(400, 'Choose a motorbike, car or tricycle');
+  if (!['motor', 'tricycle', 'car'].includes(b.vehicle_type)) fail(400, 'Choose a motorbike, tricycle or car');
   if (q.get(`SELECT 1 x FROM rides WHERE customer_id=? AND status IN ${ACTIVE}`, u.id)) fail(409, 'You already have a ride in progress');
   const pickup = pt(b.pickup, 'Pickup'), drop = pt(b.drop, 'Destination');
   const qt = await quoteFor(u.id, pickup, drop, b.promo); // price is ALWAYS computed here, never taken from the client
@@ -187,7 +187,8 @@ router.post('/api/jobs/:kind/:id/accept', (c) => {
   if (!job) fail(409, 'Another rider already accepted this request');
   if (kind === 'ride') {
     const r = q.get('SELECT * FROM rides WHERE id=?', id);
-    notify(r.customer_id, 'Rider on the way 🏍️', `${u.name} accepted your ride${u.vehicle_make ? ' · ' + u.vehicle_make : ''}${u.plate ? ' · ' + u.plate : ''}`, 'ride', { rideId: id });
+    const provider = r.vehicle_type === 'car' ? 'Driver' : r.vehicle_type === 'tricycle' ? 'Tricycle operator' : 'Rider';
+    notify(r.customer_id, `${provider} on the way`, `${u.name} accepted your ride${u.vehicle_make ? ' · ' + u.vehicle_make : ''}${u.plate ? ' · ' + u.plate : ''}`, 'ride', { rideId: id });
     push(r.customer_id, 'ride:update', { id, status: 'accepted' });
     return rideDetail(r, u);
   }
@@ -204,7 +205,8 @@ router.post('/api/rides/:id/arrived', (c) => {
   const u = provider(c); const r = loadRide(c.params.id, u, 'rider');
   if (r.status !== 'accepted') fail(409, 'Not at the right step yet');
   q.run("UPDATE rides SET status='arrived', arrived_at=? WHERE id=?", Date.now(), r.id);
-  notify(r.customer_id, 'Your rider has arrived', r.vehicle_type === 'motor' ? 'Please collect the helmet from your rider and share your ride PIN.' : 'Share your ride PIN to start.', 'ride', { rideId: r.id });
+  const providerLabel = r.vehicle_type === 'car' ? 'driver' : 'rider';
+  notify(r.customer_id, `Your ${providerLabel} has arrived`, r.vehicle_type === 'motor' ? 'Please collect the helmet from your rider and share your ride PIN.' : 'Share your ride PIN to start.', 'ride', { rideId: r.id });
   push(r.customer_id, 'ride:update', { id: r.id, status: 'arrived' });
 });
 /** Safety: motorbike riders must confirm they handed over a helmet + protective gear before the trip can start. */
@@ -250,16 +252,10 @@ router.get('/api/provider/earnings', (c) => {
   const startDay = new Date(); startDay.setHours(0, 0, 0, 0);
   const rows = (since) => q.get("SELECT COUNT(*) n, COALESCE(SUM(fare),0) s FROM rides WHERE rider_id=? AND status='completed' AND ended_at>=?", u.id, since);
   const del = (since) => q.get("SELECT COUNT(*) n, COALESCE(SUM(delivery_fee),0) s FROM orders WHERE rider_id=? AND status='completed' AND completed_at>=?", u.id, since);
-  const period = (since) => {
-    const rides = rows(since), deliveries = del(since);
-    return { tasks: rides.n + deliveries.n, earned: +(rides.s + deliveries.s).toFixed(2) };
-  };
-  const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
+  const week = Date.now() - 7 * 86400000;
   return {
-    today: period(+startDay),
-    week: period(Date.now() - 7 * 86400000),
-    month: period(+month),
-    total: period(0),
+    today: { trips: rows(+startDay).n + del(+startDay).n, earned: +(rows(+startDay).s + del(+startDay).s).toFixed(2) },
+    week: { trips: rows(week).n + del(week).n, earned: +(rows(week).s + del(week).s).toFixed(2) },
     rating: u.rating_avg, rating_count: u.rating_count, subscription: { status: t.status, period_end: t.period_end, active: tenancy.isActive(t) },
   };
 });

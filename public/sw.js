@@ -2,7 +2,7 @@
    - App shell (HTML/JS/CSS/images): network-first, falls back to the cache, so deploys always reach users.
    - Never caches /api, /pay, uploads POSTs or the live event stream (rides, orders and money are always live).
    - Cross-origin libs/fonts/map tiles: stale-while-revalidate (tiles capped). */
-const V = 'ridergo-v2';
+const V = 'ridergo-v1';
 const SHELL = ['/', '/offline.html', '/css/app.css', '/js/app.js', '/js/core.js', '/js/shell.js', '/js/components.js', '/js/map.js', '/js/picker.js',
   '/js/views/auth.js', '/js/views/customer.js', '/js/views/ride.js', '/js/views/eats.js', '/js/views/account.js', '/js/views/billing.js', '/js/views/provider.js', '/js/views/vendor.js', '/js/views/admin.js',
   '/img/logo-full.jpg', '/img/logo-mark.png', '/img/icon-192.png', '/img/favicon.png', '/manifest.webmanifest'];

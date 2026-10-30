@@ -4,10 +4,7 @@ import { esc } from './core.js';
 
 const ICONS = {
   me: '<div class="mk me"><i></i></div>', pickup: '<div class="mk dot"></div>', drop: '<div class="mk pin">📍</div>',
-  motor: '<div class="mk veh logo"></div>',
-  car: '<div class="mk veh vehicle-icon"><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 21 8 11a4 4 0 0 1 4-3h24a4 4 0 0 1 4 3l3 10v6h-5v-3H10v3H5z"/><path d="M9 18h30M12 12h24"/><circle cx="13" cy="23" r="2"/><circle cx="35" cy="23" r="2"/></svg></div>',
-  tricycle: '<div class="mk veh vehicle-icon"><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 25h5m8 0h8M28 25h10"/><circle cx="8" cy="25" r="4"/><circle cx="22" cy="25" r="4"/><circle cx="40" cy="25" r="4"/><path d="M10 25l2-12h14v12m-12-12V8h12l7 7h5l2 6H27m-13-8h10m3-5v8h9"/></svg></div>',
-  vendor: '<div class="mk shop">🍽️</div>', grocery: '<div class="mk shop">🥬</div>', convenience: '<div class="mk shop">🛍️</div>',
+  motor: '<div class="mk veh logo"></div>', tricycle: '<div class="mk veh">🛺</div>', car: '<div class="mk veh">🚗</div>', vendor: '<div class="mk shop">🍽️</div>', grocery: '<div class="mk shop">🥬</div>', convenience: '<div class="mk shop">🛍️</div>',
   food: '<div class="mk shop">🍽️</div>',
 };
 

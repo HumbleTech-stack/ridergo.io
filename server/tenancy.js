@@ -5,7 +5,6 @@ const { notify } = require('./notify');
 
 const DAY = 86400000;
 const MONTH = 30 * DAY;
-const serviceType = (tenant) => tenant?.service_type || tenant?.type;
 
 /**
  * Tenant = a business account (independent rider, driver, or food vendor with their own fleet).
@@ -50,4 +49,4 @@ function startTrial(tenantId) {
   if (config.trialDays > 0) q.update('tenants', tenantId, { status: 'active', period_end: Date.now() + config.trialDays * DAY });
 }
 
-module.exports = { getTenant, isActive, defaultPlan, serviceType, activateSubscription, startTrial, MONTH, DAY };
+module.exports = { getTenant, isActive, defaultPlan, activateSubscription, startTrial, MONTH, DAY };

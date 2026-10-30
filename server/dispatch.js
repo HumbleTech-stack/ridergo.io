@@ -15,14 +15,14 @@ const ACTIVE_ORDER = "('assigned','picked_up','arrived')";
 /** Online, fresh-GPS, subscribed, idle providers with the right vehicle, nearest first. */
 function candidates(job, radiusKm) {
   const fresh = Date.now() - config.dispatch.locFreshMs;
-  const vehicleRole = job.kind === 'ride' ? (job.vehicle_type === 'motor' ? 'rider' : 'driver') : 'rider';
-  const vehicleType = job.kind === 'ride' ? job.vehicle_type : 'motor';
+  const vehicleRole = job.kind === 'ride' ? (job.vehicle_type === 'car' ? 'driver' : 'rider') : 'rider';
   const rows = q.all(
-    `SELECT u.id, u.name, u.lat, u.lng, u.tenant_id FROM users u
-     WHERE u.role=? AND u.vehicle_type=? AND u.online=1 AND u.blocked=0 AND u.loc_at>? AND u.lat IS NOT NULL
+    `SELECT u.id, u.name, u.lat, u.lng, u.tenant_id, u.vehicle_type FROM users u
+     WHERE u.role=? AND u.online=1 AND u.blocked=0 AND u.loc_at>? AND u.lat IS NOT NULL
+       AND (? <> 'ride' OR u.vehicle_type=?)
        AND NOT EXISTS (SELECT 1 FROM rides r WHERE r.rider_id=u.id AND r.status IN ${ACTIVE_RIDE})
        AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.rider_id=u.id AND o.delivery_status IN ${ACTIVE_ORDER})`,
-    vehicleRole, vehicleType, fresh);
+    vehicleRole, fresh, job.kind, job.vehicle_type);
   return rows
     .filter((u) => tenancy.isActive(tenancy.getTenant(u.tenant_id)))
     .map((u) => ({ ...u, dist: haversine({ lat: job.lat, lng: job.lng }, u) }))
@@ -105,6 +105,10 @@ function accept(kind, id, riderId) {
   if (!tenancy.isActive(tenancy.getTenant(rider.tenant_id))) throw Object.assign(new Error('Your subscription is not active'), { status: 402 });
   const offered = q.get("SELECT 1 x FROM offers WHERE kind=? AND ref_id=? AND user_id=? AND status='offered'", kind, id, riderId);
   if (!offered) throw Object.assign(new Error('This request is no longer available'), { status: 409 });
+  if (kind === 'ride') {
+    const ride = q.get("SELECT vehicle_type FROM rides WHERE id=? AND status='searching'", id);
+    if (!ride || rider.vehicle_type !== ride.vehicle_type) throw Object.assign(new Error('This request is for a different vehicle type'), { status: 409 });
+  }
   const won = q.tx(() => {
     if (kind === 'ride') {
       if (q.get("SELECT 1 x FROM rides WHERE rider_id=? AND status IN ('accepted','arrived','ongoing')", riderId)) throw Object.assign(new Error('Finish your current trip first'), { status: 409 });

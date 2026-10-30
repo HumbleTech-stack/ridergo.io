@@ -37,7 +37,7 @@ router.get('/api/riders/nearby', (c) => {
   const fresh = Date.now() - config.dispatch.locFreshMs;
   return q.all("SELECT u.id, u.role, u.vehicle_type, u.lat, u.lng, u.tenant_id FROM users u WHERE u.role IN ('rider','driver') AND u.online=1 AND u.loc_at>? AND u.lat IS NOT NULL", fresh)
     .filter((u) => tenancy.isActive(tenancy.getTenant(u.tenant_id)) && geo.haversine(p, u) <= 8)
-    .map((u) => ({ type: u.vehicle_type, lat: u.lat, lng: u.lng, km: +geo.haversine(p, u).toFixed(1) }));
+    .map((u) => ({ type: u.vehicle_type || (u.role === 'driver' ? 'car' : 'motor'), lat: u.lat, lng: u.lng, km: +geo.haversine(p, u).toFixed(1) }));
 });
 
 function vendorCard(v, from) {

@@ -17,7 +17,7 @@ router.get('/api/admin/overview', (c) => {
   return {
     currency: config.currency, mrr,
     tenants: { total: n('SELECT COUNT(*) n FROM tenants'), active: n("SELECT COUNT(*) n FROM tenants WHERE status='active'"), pending: n("SELECT COUNT(*) n FROM tenants WHERE status='pending_payment'"), past_due: n("SELECT COUNT(*) n FROM tenants WHERE status='past_due'"), suspended: n("SELECT COUNT(*) n FROM tenants WHERE status='suspended'") },
-    by_type: q.all("SELECT COALESCE(service_type,type) type, COUNT(*) n, SUM(status='active') active FROM tenants GROUP BY COALESCE(service_type,type)"),
+    by_type: q.all("SELECT type, COUNT(*) n, SUM(status='active') active FROM tenants GROUP BY type"),
     customers: n("SELECT COUNT(*) n FROM users WHERE role='customer'"),
     online_providers: n("SELECT COUNT(*) n FROM users WHERE online=1"),
     rides: { total: n('SELECT COUNT(*) n FROM rides'), completed: n("SELECT COUNT(*) n FROM rides WHERE status='completed'") },
@@ -34,8 +34,8 @@ router.get('/api/admin/tenants', (c) => {
   admin(c);
   const where = [], p = [];
   if (c.query.status) { where.push('t.status=?'); p.push(c.query.status); }
-  if (c.query.type) { where.push('COALESCE(t.service_type,t.type)=?'); p.push(c.query.type); }
-  return q.all(`SELECT t.id, t.type, COALESCE(t.service_type,t.type) service_type, t.name, t.status, t.period_end, t.created_at, t.auto_renew, pl.name plan, pl.amount, u.name owner, u.email, u.phone
+  if (c.query.type) { where.push('t.type=?'); p.push(c.query.type); }
+  return q.all(`SELECT t.id, t.type, t.name, t.status, t.period_end, t.created_at, t.auto_renew, pl.name plan, pl.amount, u.name owner, u.email, u.phone
     FROM tenants t LEFT JOIN plans pl ON pl.id=t.plan_id LEFT JOIN users u ON u.id=t.owner_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY t.id DESC LIMIT 200`, ...p);
 });
 router.patch('/api/admin/tenants/:id', (c) => {

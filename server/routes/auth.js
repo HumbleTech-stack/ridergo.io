@@ -32,7 +32,7 @@ function meView(u) {
   return {
     user: publicUser(u),
     tenant: t && {
-      id: t.id, type: t.type, service_type: tenancy.serviceType(t), name: t.name, status: t.status, active: tenancy.isActive(t), period_end: t.period_end,
+      id: t.id, type: t.type, name: t.name, status: t.status, active: tenancy.isActive(t), period_end: t.period_end,
       plan: t.plan_name, plan_amount: t.plan_amount, seats: t.seats, is_owner: t.owner_id === u.id, auto_renew: !!t.auto_renew,
     },
     wallet: t && t.owner_id === u.id ? walletBalance(t.id) : undefined,
@@ -50,7 +50,8 @@ router.post('/api/auth/register', (c) => {
 /** Providers (riders, drivers, vendors) each get their own tenant + a subscription to pay. */
 router.post('/api/auth/register-provider', (c) => {
   const b = c.body;
-  if (!['rider', 'driver', 'tricycle', 'vendor'].includes(b.type)) fail(400, 'Choose motorbike rider, car driver, tricycle driver or food vendor');
+  if (!['rider', 'driver', 'vendor'].includes(b.type)) fail(400, 'Choose rider, driver or food vendor');
+  if (b.type === 'rider' && b.vehicle_type !== undefined && !['motor', 'tricycle'].includes(b.vehicle_type)) fail(400, 'Choose a motorbike or tricycle');
   checkBasics(b);
   if (b.type !== 'vendor') {
     if (!b.plate || String(b.plate).trim().length < 3) fail(400, 'Enter your vehicle registration number');
@@ -63,9 +64,7 @@ router.post('/api/auth/register-provider', (c) => {
   const plan = tenancy.defaultPlan(b.type);
   if (!plan) fail(500, 'No subscription plan is configured for this account type');
   let avatar = null;
-  const providerRole = b.type === 'rider' ? 'rider' : ['driver', 'tricycle'].includes(b.type) ? 'driver' : 'vendor';
-  const tenantType = b.type === 'tricycle' ? 'driver' : b.type;
-  if (['rider', 'driver', 'tricycle'].includes(b.type)) {
+  if (['rider', 'driver'].includes(b.type)) {
     try { avatar = saveImage(b.avatar_data); }
     catch (e) { if (e instanceof ImageUploadError) fail(400, `A profile photo is required. ${e.message}`); throw e; }
   }
@@ -73,10 +72,10 @@ router.post('/api/auth/register-provider', (c) => {
   try {
     result = q.tx(() => {
       const tName = b.type === 'vendor' ? b.business_name.trim() : `${b.name.trim()} (${b.type})`;
-      const tid = q.insert('tenants', { type: tenantType, service_type: b.type, name: tName, slug: slugify(tName) + '-' + Math.random().toString(36).slice(2, 6), plan_id: plan.id, status: 'pending_payment', created_at: Date.now() });
+      const tid = q.insert('tenants', { type: b.type, name: tName, slug: slugify(tName) + '-' + Math.random().toString(36).slice(2, 6), plan_id: plan.id, status: 'pending_payment', created_at: Date.now() });
       const uid = q.insert('users', {
-        name: b.name.trim(), email: normEmail(b.email), phone: normPhone(b.phone), password_hash: hashPassword(b.password), role: providerRole, tenant_id: tid,
-        avatar: avatar?.url || null, vehicle_type: b.type === 'rider' ? 'motor' : ['driver', 'tricycle'].includes(b.type) ? b.type === 'tricycle' ? 'tricycle' : 'car' : null, vehicle_make: b.vehicle_make || null,
+        name: b.name.trim(), email: normEmail(b.email), phone: normPhone(b.phone), password_hash: hashPassword(b.password), role: b.type, tenant_id: tid,
+        avatar: avatar?.url || null, vehicle_type: b.type === 'rider' ? (b.vehicle_type || 'motor') : b.type === 'driver' ? 'car' : null, vehicle_make: b.vehicle_make || null,
         plate: b.plate ? String(b.plate).trim().toUpperCase() : null, license_no: b.license_no || null, created_at: Date.now(),
       });
       q.update('tenants', tid, { owner_id: uid });
@@ -124,6 +123,16 @@ router.patch('/api/me', (c) => {
   if (['rider', 'driver'].includes(u.role)) {
     for (const k of ['vehicle_make', 'plate', 'license_no']) if (b[k] !== undefined) patch[k] = String(b[k]).trim();
     if (b.has_gear !== undefined) patch.has_gear = b.has_gear ? 1 : 0;
+  }
+  if (u.role === 'rider' && b.vehicle_type !== undefined) {
+    if (!['motor', 'tricycle'].includes(b.vehicle_type)) fail(400, 'Choose a motorbike or tricycle');
+    if (b.vehicle_type !== u.vehicle_type) {
+      if (u.online || q.get("SELECT 1 x FROM rides WHERE rider_id=? AND status IN ('accepted','arrived','ongoing')", u.id) ||
+          q.get("SELECT 1 x FROM orders WHERE rider_id=? AND delivery_status IN ('assigned','picked_up','arrived')", u.id)) {
+        fail(409, 'Go offline and finish your active jobs before changing vehicle type');
+      }
+      patch.vehicle_type = b.vehicle_type;
+    }
   }
   q.update('users', u.id, patch);
   return meView(q.get('SELECT * FROM users WHERE id=?', u.id));

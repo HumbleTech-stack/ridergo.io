@@ -7,7 +7,6 @@ function ensureBase() {
   const plans = [
     ['rider_solo', 'rider', 'Rider', 50, 1, 'Go online & accept rides and deliveries|Live GPS dispatch|Wallet & payouts'],
     ['driver_solo', 'driver', 'Driver', 80, 1, 'Accept car rides|Live GPS dispatch|Wallet & payouts'],
-    ['tricycle_solo', 'tricycle', 'Tricycle Driver', 80, 1, 'Accept tricycle rides|Live GPS dispatch|Dedicated tricycle subscription|Wallet & payouts'],
     ['vendor_starter', 'vendor', 'Vendor Starter', 100, 3, 'Your shop on the map|Unlimited menu items|Up to 3 of your own riders|Order dashboard & payouts'],
     ['vendor_pro', 'vendor', 'Vendor Pro', 200, 10, 'Everything in Starter|Up to 10 of your own riders|Priority in search'],
   ];
@@ -30,7 +29,7 @@ function seedDemo() {
   q.insert('users', { name: 'Alex Mensah', email: 'alex@demo.com', phone: '+233200000001', password_hash: pw, role: 'customer', created_at: now });
 
   const mk = (type, name, email, phone, extra = {}, planCode) => {
-    const tid = q.insert('tenants', { type, service_type: type, name: extra.business || `${name} (${type})`, slug: email.split('@')[0], plan_id: plan(planCode), status: 'active', period_end: now + 30 * 86400000, created_at: now });
+    const tid = q.insert('tenants', { type, name: extra.business || `${name} (${type})`, slug: email.split('@')[0], plan_id: plan(planCode), status: 'active', period_end: now + 30 * 86400000, created_at: now });
     const uid = q.insert('users', { name, email, phone, password_hash: pw, role: type, tenant_id: tid, avatar: ['rider', 'driver'].includes(type) ? '/img/logo-mark.png' : null, created_at: now, vehicle_type: type === 'rider' ? 'motor' : type === 'driver' ? 'car' : null, vehicle_make: extra.make || null, plate: extra.plate || null, license_no: extra.plate ? 'DL-' + extra.plate : null, online: extra.pos ? 1 : 0, lat: extra.pos?.[0] ?? null, lng: extra.pos?.[1] ?? null, loc_at: extra.pos ? now : null });
     q.update('tenants', tid, { owner_id: uid });
     return { tid, uid };

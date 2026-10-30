@@ -1,9 +1,5 @@
 .env
-.env.*
-!.env.example
 data/*.db*
 uploads/*
 !uploads/.gitkeep
 node_modules
-coverage/
-npm-debug.log*

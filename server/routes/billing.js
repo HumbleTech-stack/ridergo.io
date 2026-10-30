@@ -21,9 +21,9 @@ router.get('/api/billing', (c) => {
   const t = tenancy.getTenant(u.tenant_id);
   const owner = t.owner_id === u.id;
   return {
-    tenant: { id: t.id, name: t.name, type: t.type, service_type: tenancy.serviceType(t), status: t.status, active: tenancy.isActive(t), period_end: t.period_end, auto_renew: !!t.auto_renew, recurring: !!t.paystack_sub_code, plan: { id: t.plan_id, name: t.plan_name, amount: t.plan_amount, seats: t.seats } },
+    tenant: { id: t.id, name: t.name, type: t.type, status: t.status, active: tenancy.isActive(t), period_end: t.period_end, auto_renew: !!t.auto_renew, recurring: !!t.paystack_sub_code, plan: { id: t.plan_id, name: t.plan_name, amount: t.plan_amount, seats: t.seats } },
     owner,
-    plans: q.all('SELECT id, code, name, amount, seats, features FROM plans WHERE tenant_type=? AND active=1 ORDER BY amount', tenancy.serviceType(t)),
+    plans: q.all('SELECT id, code, name, amount, seats, features FROM plans WHERE tenant_type=? AND active=1 ORDER BY amount', t.type),
     payments: owner ? q.all("SELECT reference, amount, currency, status, provider, channel, created_at, paid_at FROM payments WHERE tenant_id=? AND kind='subscription' ORDER BY id DESC LIMIT 20", t.id) : [],
     mock: !paystack.live(),
   };
@@ -33,7 +33,7 @@ router.get('/api/billing', (c) => {
 router.post('/api/billing/checkout', async (c) => {
   const u = c.need('rider', 'driver', 'vendor');
   const t = ownerTenant(u);
-  let plan = q.get('SELECT * FROM plans WHERE id=? AND tenant_type=? AND active=1', +c.body.plan_id || t.plan_id, tenancy.serviceType(t));
+  let plan = q.get('SELECT * FROM plans WHERE id=? AND tenant_type=? AND active=1', +c.body.plan_id || t.plan_id, t.type);
   if (!plan) fail(400, 'Choose a valid plan');
   if (plan.id !== t.plan_id) q.update('tenants', t.id, { plan_id: plan.id });
   const out = await payments.createCheckout({
@@ -165,11 +165,41 @@ router.get('/pay/return', (c) => {
   c.res.writeHead(302, { Location: `/#/pay-return?reference=${encodeURIComponent(ref)}` }); c.res.end();
 });
 
-// ---------- Earnings wallet ----------
+// ---------- Wallet & payouts ----------
 router.get('/api/wallet', (c) => {
   const u = c.need('rider', 'driver', 'vendor'); const t = ownerTenant(u);
   return {
     balance: payments.walletBalance(t.id), currency: config.currency,
     ledger: q.all('SELECT kind, amount, note, created_at FROM ledger WHERE tenant_id=? ORDER BY id DESC LIMIT 50', t.id),
+    payouts: q.all('SELECT id, amount, method, account_number, account_name, status, created_at FROM payouts WHERE tenant_id=? ORDER BY id DESC LIMIT 20', t.id),
   };
+});
+router.get('/api/banks', async (c) => {
+  if (!paystack.live()) return [{ code: 'MTN', name: 'MTN Mobile Money', type: 'mobile_money' }, { code: 'VOD', name: 'Telecel Cash', type: 'mobile_money' }, { code: 'ATL', name: 'AirtelTigo Money', type: 'mobile_money' }, { code: 'GCB', name: 'GCB Bank', type: 'ghipss' }];
+  try { return (await paystack.listBanks()).map((b) => ({ code: b.code, name: b.name, type: b.type })); } catch { return []; }
+});
+router.post('/api/wallet/withdraw', async (c) => {
+  const u = c.need('rider', 'driver', 'vendor'); const t = ownerTenant(u);
+  const amount = Math.round(+c.body.amount * 100) / 100;
+  if (!(amount >= 10)) fail(400, `Minimum withdrawal is ${config.currency} 10`);
+  const { bank_code, account_number, account_name } = c.body;
+  if (!bank_code || !/^\d{6,20}$/.test(String(account_number || '')) || !account_name) fail(400, 'Enter your account name, number and bank / mobile money network');
+  const type = c.body.method === 'bank' ? 'ghipss' : 'mobile_money';
+  const payoutId = q.tx(() => {
+    if (amount > payments.walletBalance(t.id)) fail(400, 'Insufficient wallet balance');
+    const id = q.insert('payouts', { tenant_id: t.id, amount, method: type, bank_code, account_number, account_name, status: 'pending', created_at: Date.now() });
+    payments.credit(t.id, 'payout', -amount, `payout:${id}`, 'Withdrawal');
+    return id;
+  });
+  if (paystack.live()) {
+    try {
+      const rec = await paystack.createRecipient({ type, name: account_name, account_number, bank_code });
+      const ref = `po_${payoutId}_${code(6)}`;
+      const tr = await paystack.transfer({ amount, recipient: rec.recipient_code, reference: ref, reason: 'RiderGo payout' });
+      q.update('payouts', payoutId, { status: tr.status === 'success' ? 'paid' : 'processing', paystack_ref: ref });
+    } catch (e) {
+      q.update('payouts', payoutId, { status: 'pending', note: e.message }); // admin can retry / pay manually
+    }
+  }
+  return { id: payoutId, balance: payments.walletBalance(t.id), status: q.get('SELECT status FROM payouts WHERE id=?', payoutId).status };
 });

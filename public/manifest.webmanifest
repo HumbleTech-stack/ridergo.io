@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "RiderGo – Rides, delivery & local business",
-  "short_name": "RiderGo",
-  "description": "Motorbike, car and tricycle rides, local food delivery, and business tools from RiderGo.",
+  "name": "Swift-Drive – Riders for riders",
+  "short_name": "Swift-Drive",
+  "description": "Motorbike & car rides, food and delivery from riders and vendors near you.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

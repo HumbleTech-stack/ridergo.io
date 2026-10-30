@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS plans (
   features TEXT, paystack_plan_code TEXT, active INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS tenants (
-  id INTEGER PRIMARY KEY, type TEXT NOT NULL CHECK(type IN ('rider','driver','vendor')), service_type TEXT,
+  id INTEGER PRIMARY KEY, type TEXT NOT NULL CHECK(type IN ('rider','driver','vendor')),
   name TEXT NOT NULL, slug TEXT UNIQUE, owner_id INTEGER, plan_id INTEGER REFERENCES plans(id),
   status TEXT NOT NULL DEFAULT 'pending_payment',  -- pending_payment|active|past_due|suspended|cancelled
   period_end INTEGER, auto_renew INTEGER NOT NULL DEFAULT 1,
@@ -146,10 +146,5 @@ CREATE TABLE IF NOT EXISTS ride_points (id INTEGER PRIMARY KEY, ride_id INTEGER 
 CREATE TABLE IF NOT EXISTS sos_events (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, ride_id INTEGER, lat REAL, lng REAL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, detail TEXT, created_at INTEGER NOT NULL);
 `);
-
-if (!db.prepare('PRAGMA table_info(tenants)').all().some((column) => column.name === 'service_type')) {
-  db.exec('ALTER TABLE tenants ADD COLUMN service_type TEXT');
-}
-db.exec('UPDATE tenants SET service_type=type WHERE service_type IS NULL');
 
 module.exports = { db, q };

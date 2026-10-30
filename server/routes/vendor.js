@@ -196,18 +196,7 @@ router.delete('/api/vendor/team/:id', (c) => {
 router.get('/api/vendor/stats', (c) => {
   const { tid } = vendorCtx(c);
   const day = new Date(); day.setHours(0, 0, 0, 0);
-  const period = (since) => {
-    const result = q.get("SELECT COUNT(*) n, COALESCE(SUM(subtotal-discount),0) s FROM orders WHERE tenant_id=? AND status='completed' AND completed_at>=?", tid, since);
-    return { tasks: result.n, earned: +result.s.toFixed(2) };
-  };
+  const t = q.get("SELECT COUNT(*) n, COALESCE(SUM(subtotal-discount),0) s FROM orders WHERE tenant_id=? AND status='completed' AND completed_at>=?", tid, +day);
   const vp = q.get('SELECT rating_avg, rating_count, order_count FROM vendor_profiles WHERE tenant_id=?', tid);
-  const today = period(+day);
-  return {
-    today_orders: today.tasks, today_sales: today.earned,
-    today, week: period(Date.now() - 7 * 86400000),
-    month: period(+new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
-    total: period(0),
-    pending: q.get("SELECT COUNT(*) n FROM orders WHERE tenant_id=? AND status='placed'", tid).n,
-    rating: +vp.rating_avg.toFixed(1), rating_count: vp.rating_count, total_orders: vp.order_count, wallet: payments.walletBalance(tid),
-  };
+  return { today_orders: t.n, today_sales: +t.s.toFixed(2), pending: q.get("SELECT COUNT(*) n FROM orders WHERE tenant_id=? AND status='placed'", tid).n, rating: +vp.rating_avg.toFixed(1), rating_count: vp.rating_count, total_orders: vp.order_count, wallet: payments.walletBalance(tid) };
 });

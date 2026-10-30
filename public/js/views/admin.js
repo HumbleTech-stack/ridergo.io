@@ -4,8 +4,8 @@ import { layout, statusBadge } from '../shell.js';
 import { empty, skeletons } from '../components.js';
 
 const TABS = [['overview', 'Overview'], ['tenants', 'Tenants'], ['plans', 'Plans'], ['safety', 'Safety'], ['payouts', 'Payouts'], ['payments', 'Payments'], ['promos', 'Promos']];
-const TYPE_LABEL = { rider: 'Motorbike rider', driver: 'Car driver', tricycle: 'Tricycle driver', vendor: 'Food vendor' };
-const TYPE_ICON = { rider: icon('motor', 22), driver: icon('car', 22), tricycle: icon('tricycle', 22), vendor: icon('store', 22) };
+const TYPE_LABEL = { rider: 'Rider / tricycle operator', driver: 'Car driver', vendor: 'Food vendor' };
+const TYPE_ICON = { rider: '🏍️', driver: '🚗', vendor: '🍲' };
 let tab = 'overview';
 
 export async function dashboard() {
@@ -35,16 +35,16 @@ export async function dashboard() {
           ${st(`${o.orders.completed}/${o.orders.total}`, 'Food orders completed')}
           ${st(o.open_reports, 'Open reports')}${st(o.sos, 'SOS alerts')}${st(o.pending_payouts, 'Payouts to process')}
         </div>
-        <section class="section"><h3>Tenants by type</h3><div class="stats mt-s">${o.by_type.map((t) => html`<div class="stat"><div class="n">${TYPE_ICON[t.type]} ${t.n}</div><div class="l">${TYPE_LABEL[t.type]}${t.type === 'vendor' ? 's' : t.type === 'rider' ? 's' : 's'}</div><small class="muted">${t.active || 0} active</small></div>`)}</div></section>`);
+        <section class="section"><h3>Tenants by type</h3><div class="stats mt-s">${o.by_type.map((t) => html`<div class="stat"><div class="n">${TYPE_ICON[t.type]} ${t.n}</div><div class="l">${TYPE_LABEL[t.type]}s</div><small class="muted">${t.active || 0} active</small></div>`)}</div></section>`);
     },
 
     async tenants() {
       const f = views.tenants.f ||= { type: '', status: '' };
       const rows = await GET('/admin/tenants?' + new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
       const sel = (k, opts) => html`<select class="input sm" data-f="${k}" aria-label="Filter by ${k}">${opts.map(([v, l]) => html`<option value="${v}" ${f[k] === v ? raw('selected') : ''}>${l}</option>`)}</select>`;
-      pane(html`<div class="row gap wrap">${sel('type', [['', 'All types'], ['rider', 'Motorbike riders'], ['driver', 'Car drivers'], ['tricycle', 'Tricycle drivers'], ['vendor', 'Vendors']])}${sel('status', [['', 'Any status'], ['active', 'Active'], ['pending_payment', 'Awaiting payment'], ['past_due', 'Expired'], ['suspended', 'Suspended']])}<span class="muted small grow right">${rows.length} tenant${rows.length === 1 ? '' : 's'}</span></div>
+      pane(html`<div class="row gap wrap">${sel('type', [['', 'All types'], ['rider', 'Riders'], ['driver', 'Drivers'], ['vendor', 'Vendors']])}${sel('status', [['', 'Any status'], ['active', 'Active'], ['pending_payment', 'Awaiting payment'], ['past_due', 'Expired'], ['suspended', 'Suspended']])}<span class="muted small grow right">${rows.length} tenant${rows.length === 1 ? '' : 's'}</span></div>
         <div class="card flat scroll-x mt-s">${rows.length ? html`<table class="table"><thead><tr><th>Business</th><th>Owner</th><th>Plan</th><th>Status</th><th>Paid until</th><th></th></tr></thead><tbody>${rows.map((t) => html`<tr>
-          <td><b>${TYPE_ICON[t.service_type]} ${t.name}</b><small class="muted block">${TYPE_LABEL[t.service_type] || TYPE_LABEL[t.type]} · joined ${day(t.created_at)}</small></td>
+          <td><b>${TYPE_ICON[t.type]} ${t.name}</b><small class="muted block">${TYPE_LABEL[t.type]} · joined ${day(t.created_at)}</small></td>
           <td>${t.owner || '—'}<small class="muted block">${t.email || ''} ${t.phone || ''}</small></td>
           <td>${t.plan || '—'}<small class="muted block">${t.amount ? money(t.amount) + '/mo' : ''}</small></td>
           <td>${statusBadge(t.status)}</td><td>${t.period_end ? day(t.period_end) : '—'}</td>
@@ -75,9 +75,9 @@ export async function dashboard() {
 
     async payouts() {
       const rows = await GET('/admin/payouts');
-      pane(html`<p class="muted small mb">Historical payout records only. New withdrawal requests are disabled; review and close any records created before this change.</p>
-        <div class="card flat scroll-x">${rows.length ? html`<table class="table"><thead><tr><th>Recorded</th><th>Tenant</th><th>Amount</th><th>Destination</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((p) => html`<tr><td>${when(p.created_at)}</td><td>${p.tenant}</td><td><b>${money(p.amount)}</b></td><td>${p.account_name || ''}<small class="muted block">${p.method || ''} ${p.account_number || ''}</small></td><td><span class="badge ${p.status === 'paid' ? 'green' : p.status === 'failed' ? 'gray' : 'amber'}">${p.status}</span></td>
-          <td class="right nowrap">${['paid', 'failed'].includes(p.status) ? '' : html`<button class="btn sm" data-act="paid" data-id="${p.id}">Mark paid</button> <button class="btn danger sm" data-act="pfail" data-id="${p.id}">Fail</button>`}</td></tr>`)}</tbody></table>` : empty('🧾', 'No historical payout records', 'Provider earnings and completed-job insights are available in Earnings.')}</div>`);
+      pane(html`<p class="muted small mb">Withdrawal requests from riders, drivers and vendors. When Paystack is live, transfers are sent automatically; otherwise pay manually and mark them paid.</p>
+        <div class="card flat scroll-x">${rows.length ? html`<table class="table"><thead><tr><th>Requested</th><th>Tenant</th><th>Amount</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((p) => html`<tr><td>${when(p.created_at)}</td><td>${p.tenant}</td><td><b>${money(p.amount)}</b></td><td>${p.account_name || ''}<small class="muted block">${p.method || ''} ${p.account_number || ''}</small></td><td><span class="badge ${p.status === 'paid' ? 'green' : p.status === 'failed' ? 'gray' : 'amber'}">${p.status}</span></td>
+          <td class="right nowrap">${['paid', 'failed'].includes(p.status) ? '' : html`<button class="btn sm" data-act="paid" data-id="${p.id}">Mark paid</button> <button class="btn danger sm" data-act="pfail" data-id="${p.id}">Fail</button>`}</td></tr>`)}</tbody></table>` : empty('💸', 'No payouts yet', 'Withdrawals appear here.')}</div>`);
     },
 
     async payments() {

@@ -7,8 +7,8 @@ const config = require('./config');
 const n = (k, d) => +(process.env[k] ?? d);
 const RATES = {
   motor: { base: n('FARE_MOTOR_BASE', 3), perKm: n('FARE_MOTOR_KM', 1.6), perMin: n('FARE_MOTOR_MIN', 0.15), min: n('FARE_MOTOR_MINFARE', 6) },
+  tricycle: { base: n('FARE_TRICYCLE_BASE', 3), perKm: n('FARE_TRICYCLE_KM', 1.6), perMin: n('FARE_TRICYCLE_MIN', 0.15), min: n('FARE_TRICYCLE_MINFARE', 6) },
   car:   { base: n('FARE_CAR_BASE', 5),   perKm: n('FARE_CAR_KM', 2.6),   perMin: n('FARE_CAR_MIN', 0.3),   min: n('FARE_CAR_MINFARE', 10) },
-  tricycle: { base: n('FARE_TRICYCLE_BASE', 4), perKm: n('FARE_TRICYCLE_KM', 2), perMin: n('FARE_TRICYCLE_MIN', 0.22), min: n('FARE_TRICYCLE_MINFARE', 8) },
 };
 const DELIVERY = { base: n('DELIVERY_BASE', 3), perKm: n('DELIVERY_KM', 1.4), min: n('DELIVERY_MIN', 5) };
 const r2 = (x) => Math.round(x * 100) / 100;

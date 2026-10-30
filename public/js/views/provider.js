@@ -48,7 +48,7 @@ function drawOffer() {
   if (!o) { card && card.remove(); return; }
   if (!card) { card = document.createElement('div'); card.id = 'offer-card'; card.className = 'offer-card'; card.setAttribute('role', 'alertdialog'); card.setAttribute('aria-label', 'New job request'); document.body.appendChild(card); }
   const del = o.kind === 'order';
-  card.innerHTML = html`<div class="row between"><span class="badge red">${del ? 'Food delivery' : o.vehicle === 'tricycle' ? 'Tricycle ride' : o.vehicle === 'car' ? 'Car ride' : 'Motor ride'}</span><small class="muted">${offers.length > 1 ? `+${offers.length - 1} more · ` : ''}${km(o.away_km)} away</small></div>
+  card.innerHTML = html`<div class="row between"><span class="badge red">${del ? 'Food delivery' : o.vehicle === 'car' ? 'Car ride' : o.vehicle === 'tricycle' ? 'Tricycle ride' : 'Motor ride'}</span><small class="muted">${offers.length > 1 ? `+${offers.length - 1} more · ` : ''}${km(o.away_km)} away</small></div>
     <div class="route-lines compact mt-s"><div class="route-line"><i class="dot"></i><span class="grow"><span class="lbl">Pickup</span><span class="val">${shortAddr(o.pickup)}</span></span></div><div class="route-line"><i class="dot sq"></i><span class="grow"><span class="lbl">Drop-off</span><span class="val">${shortAddr(o.drop)}</span></span></div></div>
     <div class="row between mt-s"><span class="muted small">${km(o.distance_km)} trip · ${o.payment === 'cash' ? 'Cash' : 'Paid online'}</span><b class="offer-fare">${money(o.fare)}</b></div>
     <div class="countdown" aria-hidden="true"><i style="animation-duration:${o.ttl}s"></i></div>
@@ -66,10 +66,11 @@ function drawOffer() {
 // ------------------------------------------------------------------ dashboard
 export async function dashboard() {
   startRealtime();
-  const u = S.me.user; const t = S.me.tenant; const motor = u.role === 'rider'; const serviceType = t ? (t.service_type || t.type) : u.role;
-  const providerLabel = { rider: 'Motorbike rider', driver: 'Car driver', tricycle: 'Tricycle driver' }[serviceType] || 'Driver';
+  const u = S.me.user; const t = S.me.tenant; const motor = u.role === 'rider';
+  const vehicleType = u.vehicle_type || (motor ? 'motor' : 'car');
+  const providerName = vehicleType === 'car' ? 'Car driver' : vehicleType === 'tricycle' ? 'Tricycle operator' : 'Motorbike rider';
   const el = layout(html`<div class="page">
-    <header class="hello"><span class="mark"></span><div class="grow"><h1>Hi, <em>${u.name.split(' ')[0]}</em></h1><span class="muted small">${providerLabel}${t && !t.is_owner ? ' · ' + t.name : ''}</span></div>${bell()}</header>
+    <header class="hello"><span class="mark"></span><div class="grow"><h1>Hi, <em>${u.name.split(' ')[0]}</em></h1><span class="muted small">${providerName}${t && !t.is_owner ? ' · ' + t.name : ''}</span></div>${bell()}</header>
     <div id="subb"></div>
     <div class="card big-toggle"><div class="grow"><div class="state" id="state">${u.online ? 'You are online' : 'You are offline'}</div><small class="muted" id="hint">${u.online ? 'Waiting for ride requests near you…' : 'Go online to receive requests'}</small></div><label class="switch lg"><input type="checkbox" id="onl" ${u.online ? raw('checked') : ''} aria-label="Go online"><i></i></label></div>
     <div id="active"></div>
@@ -78,7 +79,7 @@ export async function dashboard() {
     <section class="section"><div class="section-h"><h3>Recent trips</h3><a href="#/activity">All →</a></div><div id="recent">${skeletons(2)}</div></section>
   </div>`, { nav: 'home' });
   const map = createMap($('#pm', el), { center: S.pos || S.cfg.center, zoom: 14 }); onLeave(() => map.destroy && map.destroy());
-  getPos().then((p) => { map.setView(p, 15); map.marker('me', { ...p, type: u.online ? (motor ? 'motor' : serviceType === 'tricycle' ? 'tricycle' : 'car') : 'me' }); });
+  getPos().then((p) => { map.setView(p, 15); map.marker('me', { ...p, type: u.online ? vehicleType : 'me' }); });
 
   if (t && !t.active) $('#subb', el).innerHTML = html`<div class="alert red mb">${icon('shield', 22)}<span><b>${t.status === 'pending_payment' ? 'Subscribe to start earning' : 'Your subscription has expired'}</b><br>${t.is_owner ? 'Pay your monthly plan with Paystack to go online and receive requests.' : 'Ask ' + t.name + ' to renew.'}${t.is_owner ? html`<br><a class="btn sm" href="#/billing">Choose a plan</a>` : ''}</span></div>`.s;
 
@@ -104,10 +105,10 @@ export async function dashboard() {
     else if (a.order_id) box.innerHTML = html`<a class="card active-job mt" href="#/drive/order/${a.order_id}"><span class="pulse-dot"></span><span class="grow"><b>Delivery in progress</b><small class="muted block">Tap to continue</small></span>${icon('chev')}</a>`.s;
   }).catch(() => {});
   GET('/provider/earnings').then((e) => {
-    $('#stats', el).innerHTML = html`<div class="stat"><div class="n">${money(e.today.earned)}</div><div class="l">Today · ${e.today.tasks} job${e.today.tasks === 1 ? '' : 's'}</div></div><div class="stat"><div class="n">${money(e.week.earned)}</div><div class="l">7 days · ${e.week.tasks} jobs</div></div><div class="stat"><div class="n">${money(e.month.earned)}</div><div class="l">This month · ${e.month.tasks} jobs</div></div><div class="stat"><div class="n">${e.rating_count ? (+e.rating).toFixed(1) : '–'} <small>★</small></div><div class="l">${e.rating_count} rating${e.rating_count === 1 ? '' : 's'}</div></div>`.s;
+    $('#stats', el).innerHTML = html`<div class="stat"><div class="n">${money(e.today.earned)}</div><div class="l">Today · ${e.today.trips} job${e.today.trips === 1 ? '' : 's'}</div></div><div class="stat"><div class="n">${money(e.week.earned)}</div><div class="l">7 days · ${e.week.trips} jobs</div></div><div class="stat"><div class="n">${e.rating_count ? (+e.rating).toFixed(1) : '–'} <small>★</small></div><div class="l">${e.rating_count} rating${e.rating_count === 1 ? '' : 's'}</div></div>`.s;
   }).catch(() => {});
   GET('/rides').then((rows) => {
-    $('#recent', el).innerHTML = rows.length ? rows.slice(0, 4).map((r) => html`<a class="card flat act-row" href="#/drive/ride/${r.id}"><span class="act-ic">${r.vehicle_type === 'tricycle' ? icon('tricycle', 26) : r.vehicle_type === 'car' ? icon('car', 26) : html`<span class="mark sm"></span>`}</span><span class="grow"><b>${shortAddr(r.drop_addr)}</b><small class="muted block">${when(r.requested_at)}</small></span><span class="right"><b>${money(r.fare)}</b><br>${rideBadge(r.status)}</span></a>`.s).join('') : empty('🛵', 'No trips yet', 'Go online to get your first request.').s;
+    $('#recent', el).innerHTML = rows.length ? rows.slice(0, 4).map((r) => html`<a class="card flat act-row" href="#/drive/ride/${r.id}"><span class="act-ic">${r.vehicle_type === 'car' ? '🚗' : r.vehicle_type === 'tricycle' ? '🛺' : html`<span class="mark sm"></span>`}</span><span class="grow"><b>${shortAddr(r.drop_addr)}</b><small class="muted block">${when(r.requested_at)}</small></span><span class="right"><b>${money(r.fare)}</b><br>${rideBadge(r.status)}</span></a>`.s).join('') : empty('🛵', 'No trips yet', 'Go online to get your first request.').s;
   }).catch(() => {});
 }
 

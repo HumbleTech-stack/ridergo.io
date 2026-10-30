@@ -5,7 +5,7 @@ const NAVS = {
   customer: [['home', '/', 'home', 'Home'], ['services', '/services', 'grid', 'Services'], 'mid', ['activity', '/activity', 'list', 'Activity'], ['account', '/account', 'user', 'Account']],
   rider: [['home', '/drive', 'home', 'Home'], ['wallet', '/wallet', 'wallet', 'Earnings'], ['billing', '/billing', 'shield', 'Plan'], ['account', '/account', 'user', 'Account']],
   driver: null,
-  vendor: [['orders', '/shop', 'bag', 'Orders'], ['menu', '/shop/menu', 'list', 'Menu'], ['team', '/shop/team', 'users', 'Riders'], ['wallet', '/wallet', 'wallet', 'Earnings'], ['account', '/account', 'user', 'More']],
+  vendor: [['orders', '/shop', 'bag', 'Orders'], ['menu', '/shop/menu', 'list', 'Menu'], ['team', '/shop/team', 'users', 'Riders'], ['wallet', '/wallet', 'wallet', 'Wallet'], ['account', '/account', 'user', 'More']],
 };
 NAVS.driver = NAVS.rider;
 

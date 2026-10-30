@@ -1,22 +1,22 @@
-// Customer ride booking and live trip tracking (motorbike, car and tricycle).
+// Customer ride booking and live trip tracking.
 import { S, GET, POST, html, raw, $, $$, icon, money, km, actions, onSubmit, on, onLeave, toast, celebrate, sheet, confirmSheet, getPos, shortAddr, reverse, tel, esc, stars } from '../core.js';
 import { fullscreen, avatar } from '../shell.js';
 import { createMap } from '../map.js';
 import { pickPlace, currentPlace } from '../picker.js';
 import { rideBadge } from '../components.js';
 
-const draft = { pickup: null, drop: null, vehicle: 'motor', payment: 'cash', promo: '', quote: null, nearby: null };
+const draft = { pickup: null, drop: null, vehicle: 'motor', payment: 'cash', promo: '', quote: null };
 
 const VEH = {
-  motor: { name: 'Motor', art: html`<span class="mark"></span>`, note: 'Fastest · helmet & gear provided' },
-  car: { name: 'Car', art: icon('car', 32), note: 'Comfortable · up to 3 passengers' },
-  tricycle: { name: 'Tricycle', art: icon('tricycle', 32), note: 'Room for passengers and extra space' },
+  motor: { name: 'Motorbike', art: html`<span class="mark"></span>`, note: 'Fastest · helmet & gear provided' },
+  tricycle: { name: 'Tricycle', art: raw('🛺'), note: 'Covered three-wheeler ride' },
+  car: { name: 'Car', art: raw('🚗'), note: 'Comfortable · up to 3 passengers' },
 };
-const providerName = (vehicle) => vehicle === 'motor' ? 'rider' : vehicle === 'tricycle' ? 'tricycle driver' : 'driver';
+const VEHICLE_LABEL = { motor: 'Motorbike', tricycle: 'Tricycle', car: 'Car' };
+const providerLabel = (vehicle) => vehicle === 'car' ? 'driver' : 'rider';
 const pt = (p) => ({ lat: p.lat, lng: p.lng });
 
 export async function book({ query }) {
-  draft.drop = null; draft.quote = null; draft.nearby = null; draft.promo = '';
   if (query.vehicle && VEH[query.vehicle]) draft.vehicle = query.vehicle;
   const el = fullscreen(html`<div class="full ride">
     <div class="mapbox" id="map"></div>
@@ -41,11 +41,11 @@ export async function book({ query }) {
       const r = await GET(`/riders/nearby?lat=${draft.pickup.lat}&lng=${draft.pickup.lng}`);
       map.clearMarkers('rd:');
       r.forEach((x, i) => map.marker('rd:' + i, { lat: x.lat, lng: x.lng, type: x.type }));
-      draft.nearby = { motor: r.filter((x) => x.type === 'motor').length, car: r.filter((x) => x.type === 'car').length, tricycle: r.filter((x) => x.type === 'tricycle').length };
+      draft.nearby = { motor: r.filter((x) => x.type === 'motor').length, tricycle: r.filter((x) => x.type === 'tricycle').length, car: r.filter((x) => x.type === 'car').length };
       const n = $('#near'); if (n) n.innerHTML = nearText().s;
     } catch { /* optional */ }
   };
-  const nearText = () => (draft.nearby ? html`<span class="pulse-dot"></span> ${draft.nearby[draft.vehicle]} ${draft.vehicle === 'motor' ? 'rider' : 'driver'}${draft.nearby[draft.vehicle] === 1 ? '' : 's'} nearby` : '');
+  const nearText = () => (draft.nearby ? html`<span class="pulse-dot"></span> ${draft.nearby[draft.vehicle]} ${draft.vehicle === 'car' ? 'drivers' : 'riders'} nearby` : '');
   nearTimer = setInterval(loadNearby, 15000); onLeave(() => clearInterval(nearTimer));
 
   const quote = async () => {
@@ -73,7 +73,7 @@ export async function book({ query }) {
       </div>
       ${!draft.drop ? html`<p class="muted small center mt">Choose a destination to see exact prices. Fares are measured along real roads — never guessed.</p><p class="small center" id="near">${nearText()}</p>` : !q ? html`<div class="skeleton mt"></div><div class="skeleton"></div>` : html`
         <div class="trip-meta small muted center mt-s">${icon('map', 16)} ${km(q.distance_km)} · about ${q.motor.eta_min} min ${q.approx ? html`<span class="badge amber">estimated route</span>` : ''}</div>
-        <div class="mt-s">${['motor', 'car', 'tricycle'].map((v) => html`<button class="veh-opt ${draft.vehicle === v ? 'on' : ''}" data-act="veh" data-v="${v}" role="radio" aria-checked="${draft.vehicle === v}"><span class="art">${VEH[v].art}</span><span class="grow"><b>${VEH[v].name}</b><s>${VEH[v].note}</s></span><span class="price">${q[v].discount > 0 ? html`<small class="strike">${money(q[v].base)}</small>` : ''}${money(q[v].fare)}</span></button>`)}</div>
+        <div class="mt-s">${Object.keys(VEH).map((v) => html`<button class="veh-opt ${draft.vehicle === v ? 'on' : ''}" data-act="veh" data-v="${v}" role="radio" aria-checked="${draft.vehicle === v}"><span class="art">${VEH[v].art}</span><span class="grow"><b>${VEH[v].name}</b><s>${VEH[v].note}</s></span><span class="price">${q[v].discount > 0 ? html`<small class="strike">${money(q[v].base)}</small>` : ''}${money(q[v].fare)}</span></button>`)}</div>
         <div class="row gap mt-s"><div class="seg grow tabs" role="radiogroup" aria-label="Payment"><button data-act="pay" data-m="cash" class="${draft.payment === 'cash' ? 'on' : ''}">${icon('wallet', 18)} Cash</button><button data-act="pay" data-m="paystack" class="${draft.payment === 'paystack' ? 'on' : ''}">${icon('card', 18)} Card / MoMo</button></div></div>
         <form id="pf" class="promo-row mt-s"><input class="input" name="promo" placeholder="Promo code" value="${draft.promo}" autocomplete="off" aria-label="Promo code"><button class="btn ghost sm" type="submit">Apply</button></form>
         ${draft.payment === 'paystack' ? html`<p class="xs muted mt-s">You'll pay securely with Paystack when your trip ends.</p>` : ''}
@@ -151,8 +151,8 @@ export async function trip({ params }) {
   };
 
   const riderCard = () => { const rd = d.rider; if (!rd) return ''; return html`<div class="card flat rider-card row gap">
-    ${avatar({ name: rd.name, role: d.ride.vehicle_type === 'motor' ? 'rider' : 'driver', vehicle_type: d.ride.vehicle_type, avatar: rd.avatar })}
-    <div class="grow"><b>${rd.name}</b> <span class="rate">${icon('star', 13)} ${rd.rating_count ? rd.rating.toFixed(1) : 'New'}</span><small class="muted block">${rd.vehicle_make || (d.ride.vehicle_type === 'motor' ? 'Motorbike' : d.ride.vehicle_type === 'tricycle' ? 'Tricycle' : 'Car')}</small></div>
+    ${avatar({ name: rd.name, role: d.ride.vehicle_type === 'car' ? 'driver' : 'rider', vehicle_type: d.ride.vehicle_type, avatar: rd.avatar })}
+    <div class="grow"><b>${rd.name}</b> <span class="rate">${icon('star', 13)} ${rd.rating_count ? rd.rating.toFixed(1) : 'New'}</span><small class="muted block">${rd.vehicle_make || VEHICLE_LABEL[d.ride.vehicle_type]}</small></div>
     <div class="plate">${rd.plate || '—'}</div><a class="icon-btn" href="${tel(rd.phone)}" aria-label="Call ${rd.name}">${icon('phone', 20)}</a></div>`; };
 
   const draw = () => {
@@ -161,19 +161,19 @@ export async function trip({ params }) {
     const route = html`<div class="route-lines compact"><div class="route-line"><i class="dot"></i><span class="grow"><span class="lbl">Pickup</span><span class="val">${shortAddr(r.pickup_addr)}</span></span></div><div class="route-line"><i class="dot sq"></i><span class="grow"><span class="lbl">Destination</span><span class="val">${shortAddr(r.drop_addr)}</span></span></div></div>`;
     let body;
     if (r.status === 'searching' || r.status === 'scheduled') {
-      body = html`<div class="searching"><div class="radar"><i></i><i></i><i></i><span>${VEH[r.vehicle_type]?.art || icon('car', 32)}</span></div></div>
-        <h3 class="center">${r.status === 'scheduled' ? 'Ride scheduled' : `Finding your ${providerName(r.vehicle_type)}…`}</h3>
+      body = html`<div class="searching"><div class="radar"><i></i><i></i><i></i><span>${VEH[r.vehicle_type]?.art || '🚗'}</span></div></div>
+        <h3 class="center">${r.status === 'scheduled' ? 'Ride scheduled' : `Finding your ${providerLabel(r.vehicle_type)}…`}</h3>
         <p class="muted center small">${r.status === 'scheduled' ? 'We will start looking shortly before pickup time.' : 'We ask the closest riders first, then widen the search. The first to accept gets your trip.'}</p>
         ${route}<div class="row between mt-s"><span class="muted">Fare</span><b>${money(r.fare)}</b></div>
         <button class="btn danger block mt" data-act="cancel">Cancel request</button>`;
     } else if (r.status === 'no_riders') {
-      body = html`      <div class="empty"><span class="art">😕</span><h3>No ${providerName(r.vehicle_type)} available right now</h3><p>We searched wide around you. Try again in a moment.</p></div>
+      body = html`<div class="empty"><span class="art">😕</span><h3>No riders available right now</h3><p>We searched wide around you. Try again in a moment.</p></div>
         <button class="btn block" data-act="retry">Search again</button><a class="btn ghost block mt-s" href="#/">Back home</a>`;
     } else if (['accepted', 'arrived'].includes(r.status)) {
       const motor = r.vehicle_type === 'motor';
-      body = html`<div class="row between"><h3>${r.status === 'arrived' ? `Your ${providerName(r.vehicle_type)} has arrived` : `Your ${providerName(r.vehicle_type)} is on the way`}</h3><span class="badge navy" id="etab">${r.status === 'accepted' ? html`ETA <span id="eta">${d.eta ? d.eta + ' min' : '…'}</span>` : 'Here now'}</span></div>
+      body = html`<div class="row between"><h3>${r.status === 'arrived' ? `Your ${providerLabel(r.vehicle_type)} has arrived` : `Your ${providerLabel(r.vehicle_type)} is on the way`}</h3><span class="badge navy" id="etab">${r.status === 'accepted' ? html`ETA <span id="eta">${d.eta ? d.eta + ' min' : '…'}</span>` : 'Here now'}</span></div>
         ${riderCard()}
-        <div class="pin-card mt-s"><small>Your ride PIN</small><div class="digits" aria-label="PIN ${r.start_pin}">${r.start_pin}</div><small>Tell this to your ${providerName(r.vehicle_type)} only when you meet. They need it to start the trip.</small></div>
+        <div class="pin-card mt-s"><small>Your ride PIN</small><div class="digits" aria-label="PIN ${r.start_pin}">${r.start_pin}</div><small>Tell this to your ${providerLabel(r.vehicle_type)} only when you meet. They need it to start the trip.</small></div>
         ${motor ? html`<div class="gear ${r.gear_confirmed ? 'ok' : ''} mt-s">${icon('helmet', 22)}<span class="grow">${r.gear_confirmed ? html`<b>Helmet &amp; protective gear handed over</b>` : html`<b>Helmet &amp; gear</b><small class="block">Your rider must give you a helmet and protective gear before the trip starts. Do not ride without them.</small>`}</span>${r.gear_confirmed ? icon('check', 20) : ''}</div>` : ''}
         ${route}
         <div class="row gap mt-s"><button class="btn danger grow" data-act="cancel">Cancel ride</button><button class="btn ghost grow" data-act="share">${icon('share', 18)} Share trip</button></div>`;
@@ -226,7 +226,7 @@ export async function trip({ params }) {
     rate: async () => { await POST('/reviews', { kind: 'ride', ref_id: id, rating, comment: $('#cm', el).value }); toast('Thanks for your feedback!', 'ok'); await load(); },
     pay: async () => { const c = await POST('/payments/init', { kind: 'ride', id }); location.href = c.authorization_url; },
     share: async () => {
-      const rd = d.rider; const vehicle = d.ride.vehicle_type === 'motor' ? 'motorbike' : d.ride.vehicle_type === 'tricycle' ? 'tricycle' : 'car'; const text = `I'm on a RiderGo ${vehicle} ride with ${rd?.name || 'my driver'}${rd?.plate ? ' (' + rd.plate + ')' : ''} to ${shortAddr(d.ride.drop_addr)}.`;
+      const rd = d.rider; const text = `I'm on a RiderGo ${VEHICLE_LABEL[d.ride.vehicle_type]?.toLowerCase() || 'ride'} ride with ${rd?.name || 'my rider'}${rd?.plate ? ' (' + rd.plate + ')' : ''} to ${shortAddr(d.ride.drop_addr)}.`;
       try { if (navigator.share) await navigator.share({ title: 'My RiderGo trip', text }); else { await navigator.clipboard.writeText(text); toast('Trip details copied', 'ok'); } } catch { /* cancelled */ }
     },
     sos: async () => {
